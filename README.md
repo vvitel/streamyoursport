@@ -13,7 +13,7 @@ L'objectif est de ne détecter que des balles en mouvement (i.e. pas dans le fil
 
 ## Exécuter le code
 ```bash
-python -B .\main.py --model_path "./weights/best_padel_s_1.pt" --video_path "C:/Users/Utilisateur/video/vid2.mp4" --frame_step 3
+python -B .\main.py --model_path "./weights/padel_openvino_model/" --video_path "C:/Users/Utilisateur/video/vid2.mp4" --frame_step 3
 ```
 
 ## Note

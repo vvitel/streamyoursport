@@ -19,5 +19,3 @@ print("the model made its predictions \U0001F52E")
 #corriger les détections
 df_detection = correct_detection(lst_detection, frame_step)
 print("the detections have been filtered \U0001F9FD")
-print(df_detection)
-df_detection.to_csv("C:/Users/Utilisateur/Downloads/gloubigloubus.csv", index=False)
