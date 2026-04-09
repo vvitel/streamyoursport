@@ -1,4 +1,4 @@
-def neutralize_player(background, frame, model_human):
+def neutralize_player(frame, model_human):
     #appliquer le modèle
     results = model_human(frame, verbose=False)
 
@@ -19,6 +19,6 @@ def neutralize_player(background, frame, model_human):
                 x2, y2 = min(w, x2 + padding), min(h, y2 + padding)
 
                 #effacer les joueurs
-                frame[y1:y2, x1:x2] = background[y1:y2, x1:x2]
+                frame[y1:y2, x1:x2] = 0
     
     return frame

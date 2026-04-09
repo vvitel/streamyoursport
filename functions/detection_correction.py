@@ -23,3 +23,4 @@ def correct_detection(lst_data, step):
                     to_remove.add(j)
 
     df = df.drop(list(to_remove)).reset_index(drop=True)
+    return df

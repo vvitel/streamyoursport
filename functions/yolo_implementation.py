@@ -1,40 +1,41 @@
 import cv2
+from tqdm import tqdm
 from ultralytics import YOLO
 from .player_neutralization import neutralize_player
 
-def apply_yolo(path_to_model, video, step, path_to_background):
+def apply_yolo(path_to_model, video, step):
     #live ou mp4
-    stream_live = False
-    if video == "live":
-        video, stream_live = 0, True
+    if video == "live": video = 0
 
-    #charger modèles, background et vidéo
+    #charger modèles
     model_ball = YOLO(path_to_model)
     model_human = YOLO("../weights/best_human.pt")
-    background = cv2.imread(path_to_background)
+
+    #charger la vidéo
     cap = cv2.VideoCapture(video)
 
     #parcourir chaque image
     data, frame_index = [], 0
-    while True:
-        ret, frame = cap.read()
-        if not ret: break
+    with tqdm() as pbar:
+        while True:
+            ret, frame = cap.read()
+            if not ret: break
 
-        #appliquer le modèle
-        if frame_index % step == 0:
-            #effacer les joueurs
-            frame = neutralize_player(background, frame, model_human)
-            results = model_ball(frame, stream=stream_live, verbose=False)
+            #appliquer le modèle
+            if frame_index % step == 0:
+                #effacer les joueurs
+                frame = neutralize_player(frame, model_human)
+                results = model_ball(frame, verbose=False)
 
-        #enregistrer les détections
-        for res in results:
-            boxes = res.boxes.xywh.tolist()
-            confs = res.boxes.conf.tolist()
-            for b, c in zip(boxes, confs):
-                b.append(c)
-                b.append(frame_index)
-                data.append(b)
-        frame_index += 1
+                #enregistrer les détections
+                boxes = results[0].boxes.xywh.tolist()
+                confs = results[0].boxes.conf.tolist()
+                for b, c in zip(boxes, confs):
+                    b.extend([c, frame_index])
+                data.extend(boxes)
+            
+            frame_index += 1
+            pbar.update(1)
         
     cap.release()
     return data

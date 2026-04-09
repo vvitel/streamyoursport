@@ -2,16 +2,26 @@
 
 ## Objectif
 
-Distinguer les phases de jeux à partir d'un flux vidéo issu d'une caméra unique.
+Distinguer les phases de jeu à partir d'un flux vidéo issu d'une caméra unique.
 
 ## Principe
 
 On applique un modèle yolo sur les frames de la vidéo.<br>
-Afin de réduire les détections de faux positifs, on efface les joueurs du terrain.<br>
-Les détections trop proches entre deux frames sont supprimées.<br><br>
+Afin de réduire les détections de faux positifs, on efface les joueurs du terrain.<br><br>
+Les détections avec moins de 0.7 de confiance et trop proches entre deux frames successives sont supprimées (distance euclidienne).<br>
+L'objectif est de ne détecter que des balles en mouvement (i.e. pas dans le filet, pas dans la main d'un joueur...).
 
 ## Exécuter le code
 ```bash
-python -B .\main.py --model_path ".\weights\best_padel_s_1.pt" --video_path "C:/Users/Utilisateur/video/vid2.mp4" --background_path ".\backgrounds\om_vid2.png" --frame_step 3
+python -B .\main.py --model_path "./weights/best_padel_s_1.pt" --video_path "C:/Users/Utilisateur/video/vid2.mp4" --frame_step 3
 ```
 
+## Note
+Je ne sais pas s'il est nécessaire de pip install ces modules pour faire l'inférence avec la quantization 
+-> openvino==2026.1.0 et nncf==3.1.0<br><br>
+
+Pour lancer le code avec la quantization mettre en argument --model_path "./weights/padel_openvino_model/"<br>
+Pour le moment ce n'est possible que pour le modèle de détection de la balle
+
+## Jeu de données d'entraînement 
+<u>yolo balle de padel :</u> https://huggingface.co/datasets/Feculent/anotherone
