@@ -1,15 +1,14 @@
 import cv2
 from tqdm import tqdm
 from ultralytics import YOLO
-from .player_neutralization import neutralize_player
+from .player_neutralization import get_detection, clear_detection
 
-def apply_yolo(path_to_model, video, step):
+def apply_yolo(video, step):
     #live ou mp4
     if video == "live": video = 0
 
     #charger modèles
-    model_ball = YOLO(path_to_model)
-    model_human = YOLO("./weights/human_openvino_model/")
+    model_player_ball = YOLO("./best_player_ball_s_1_openvino_model/")
 
     #charger la vidéo
     cap = cv2.VideoCapture(video)
@@ -23,19 +22,15 @@ def apply_yolo(path_to_model, video, step):
 
             #appliquer le modèle
             if frame_index % step == 0:
-                #effacer les joueurs
-                frame = neutralize_player(frame, model_human)
-                results = model_ball(frame, verbose=False)
+                result = model_player_ball(frame, verbose=False)
 
-                #enregistrer les détections
-                boxes = results[0].boxes.xywh.tolist()
-                confs = results[0].boxes.conf.tolist()
-                for b, c in zip(boxes, confs):
-                    b.extend([c, frame_index])
-                data.extend(boxes)
-            
+                #récupérer les détections
+                xywh_player, _, xywh_ball, conf_ball = get_detection(result[0])
+                good_ball = clear_detection(xywh_ball, conf_ball, xywh_player)
+                for gb in good_ball: data.append(gb + [frame_index])
+
             frame_index += 1
             pbar.update(1)
-        
+
     cap.release()
     return data
