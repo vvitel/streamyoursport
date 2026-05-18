@@ -1,4 +1,5 @@
 opencv-python==4.12.0.88
+openvino==2026.1.0
 pandas==2.3.0
 tqdm==4.67.1
 ultralytics==8.3.191
