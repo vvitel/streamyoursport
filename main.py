@@ -1,6 +1,8 @@
 import argparse
 from functions.yolo_implementation import apply_yolo
 from functions.detection_correction import correct_detection
+from functions.detection_visualization import visualize_detection
+from functions.highlights_creation import create_highlights
 
 #définition des arguments
 ap = argparse.ArgumentParser()
@@ -19,3 +21,9 @@ print("the model made its predictions \U0001F52E")
 #corriger les détections
 df_detection = correct_detection(lst_detection, frame_step)
 print("the detections have been filtered \U0001F9FD")
+
+#trouver les moments forts
+create_highlights(df_detection, 35)
+
+#visualiser les détections
+#visualize_detection(video_path, df_detection)
