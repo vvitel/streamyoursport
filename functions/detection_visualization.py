@@ -1,21 +1,19 @@
 import cv2
 
-def visualize_detection(path_to_video, df):
+def visualize_detection(path_to_video, data):
     video = cv2.VideoCapture(path_to_video)
-
-    empty_frames_number = 35
-    df["block"] = (df["frame"].diff().fillna(0) >= empty_frames_number).cumsum()
+    X, Y, FRAME, BLOCK  = 0, 1, 5, -1
 
     frame_index = 0
     while True:
         ret, frame = video.read()
         if not ret: break
 
-        subset_df = df[df["frame"] == frame_index]
-        if not subset_df.empty:
-            for _, row in subset_df.iterrows():
-                x, y = int(row["x"]), int(row["y"])
-                block = row["block"]
+        subset = data[data[:, FRAME] == frame_index]
+        if subset.size > 0:
+            for row in subset:
+                x, y = int(row[X]), int(row[Y])
+                block = row[BLOCK]
                 cv2.circle(frame, center=(x, y), radius=10, color=(0, 0, 255), thickness=-1)
                 cv2.putText(frame, str(block), (0, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 

@@ -1,26 +1,36 @@
-import math
-import pandas as pd
+import numpy as np
 
 def correct_detection(lst_data, step):
-    #convertir la liste en dataframe
-    colnames = ["x", "y", "width", "height", "conf", "frame"]
-    df = pd.DataFrame(lst_data, columns=colnames)
+    data = np.array(lst_data)
+    X, Y, CONF, FRAME = 0, 1, 4, 5
 
-    #filrer les détections inférieures à .7
-    threshold_conf = 0.7
-    df = df[df["conf"] > threshold_conf].reset_index(drop=True)
+    #garder détection avec confiance > .7
+    data = data[data[:, CONF] > 0.7]
 
     #supprimer les détections statiques
     to_remove = set()
-    for i in range(len(df)):
-        for j in range(i + 1, len(df)):
-            if abs(df.loc[i, "frame"] - df.loc[j, "frame"]) <= step:
-                dx = df.loc[i, "x"] - df.loc[j, "x"]
-                dy = df.loc[i, "y"] - df.loc[j, "y"]
-                dist = math.sqrt(dx**2 + dy**2)
-                if dist < 5:
-                    to_remove.add(i)
-                    to_remove.add(j)
+    for f in np.unique(data[:, FRAME]):
+        pts1 = data[data[:, FRAME] == f][:, [X, Y]]
+        pts2 = data[data[:, FRAME] == (f + step)][:, [X, Y]]
+        if len(pts1) == 0 or len(pts2) == 0: continue
 
-    df = df.drop(list(to_remove)).reset_index(drop=True)
-    return df
+        #calcul des distances
+        diff = pts1[:, None, :] - pts2[None, :, :]
+        dist = np.sqrt(np.sum(diff**2, axis=2))
+
+        #définition du seuil
+        close = dist < 5
+        if np.any(close):
+            idx1 = np.where(data[:, FRAME] == f)[0]
+            idx2 = np.where(data[:, FRAME] == (f + step))[0]
+            i_idx, j_idx = np.where(close)
+            to_remove.update(idx1[i_idx])
+            to_remove.update(idx2[j_idx])
+
+    #suppression finale
+    if to_remove:
+        mask = np.ones(len(data), dtype=bool)
+        mask[list(to_remove)] = False
+        data = data[mask]
+
+    return data

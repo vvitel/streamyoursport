@@ -15,13 +15,3 @@ L'objectif est de ne détecter que des balles en mouvement (i.e. pas dans le fil
 ```bash
 python -B .\main.py --model_path "./weights/padel_openvino_model/" --video_path "C:/Users/Utilisateur/video/vid2.mp4" --frame_step 3
 ```
-
-## Note
-Je ne sais pas s'il est nécessaire de pip install ces modules pour faire l'inférence avec la quantization 
--> openvino==2026.1.0 et nncf==3.1.0<br><br>
-
-Pour lancer le code avec la quantization mettre en argument --model_path "./weights/padel_openvino_model/"<br>
-Pour le moment ce n'est possible que pour le modèle de détection de la balle
-
-## Jeu de données d'entraînement 
-<u>yolo balle de padel :</u> https://huggingface.co/datasets/Feculent/anotherone
