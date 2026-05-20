@@ -17,21 +17,15 @@ def create_highlights(data, nb_frame_to_separate):
         block = data[data[:, BLOCK] == i]
         first_frame = block[:, FRAME].min()
         last_frame = block[:, FRAME].max()
-        length = block.shape[0]
-        std_x = block[:, X].std()
-        std_y = block[:, Y].std()
-        rows.append([i, first_frame, last_frame, length, std_x, std_y])
 
-        import matplotlib.pyplot as plt
-        plt.scatter(block[:, X], block[:, Y])
-        plt.xlim(0, 1920)
-        plt.ylim(1080, 0)
-        plt.show()
+        #répartition sur la toile
+        cell_size = 20
+        points = block[:, [X, Y]].astype(int)
+        gx = points[:, 0] // cell_size
+        gy = points[:, 1] // cell_size
+        occupied_cell = len(set(zip(gx, gy)))
+        print(occupied_cell)
 
-    #choix des blocs pertinents
-    arr_block = np.array(rows)
-    total = arr_block[:, 4] + arr_block[:, 5]
-    top3 = arr_block[np.argsort(total)[-3:]]
-    
-    print(top3)
+        rows.append([i, first_frame, last_frame, occupied_cell])
+
     return data

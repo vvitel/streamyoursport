@@ -27,4 +27,4 @@ array_detection = create_highlights(array_detection, 35)
 print("highlight clips created \U0001F39E")
 
 #visualiser les détections
-visualize_detection(video_path, array_detection)
+#visualize_detection(video_path, array_detection)
