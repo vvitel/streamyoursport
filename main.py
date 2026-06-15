@@ -4,6 +4,7 @@ from functions.gridtracknet.build_model_input import build_model_input
 from functions.gridtracknet.model_definition import GridTrackNet
 from functions.gridtracknet.run_model import run_model
 from functions.gridtracknet.decode_to_coordinates import decode_to_coordinates
+from functions.correct_detection import correct_detection
 
 #définition des arguments
 ap = argparse.ArgumentParser()
@@ -33,4 +34,6 @@ model.load_weights("./weights/model_weights.h5")
 y = run_model(model, units)
 coords = decode_to_coordinates(y, frame_width, frame_height, IMGS_PER_INSTANCE, WIDTH, HEIGHT, GRID_ROWS, GRID_COLS)
 
-print(coords)
+#corriger les détections
+coords_clean = correct_detection(coords)
+print(coords_clean)
