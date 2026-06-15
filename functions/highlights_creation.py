@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial import ConvexHull
 
 def create_highlights(data, nb_frame_to_separate):
     X, Y, FRAME, BLOCK  = 0, 1, 5, -1
@@ -15,17 +16,17 @@ def create_highlights(data, nb_frame_to_separate):
     rows = []
     for i in np.unique(data[:, BLOCK]):
         block = data[data[:, BLOCK] == i]
+        block = data[data[:, BLOCK] == i]
         first_frame = block[:, FRAME].min()
         last_frame = block[:, FRAME].max()
 
-        #répartition sur la toile
-        cell_size = 20
-        points = block[:, [X, Y]].astype(int)
-        gx = points[:, 0] // cell_size
-        gy = points[:, 1] // cell_size
-        occupied_cell = len(set(zip(gx, gy)))
-        print(occupied_cell)
-
-        rows.append([i, first_frame, last_frame, occupied_cell])
-
-    return data
+        points = block[:, [X, Y]]
+        nb_points = len(points)
+        #enveloppe convexe
+        if nb_points >= 3:
+            perimeter = ConvexHull(points).area
+            rows.append([i, first_frame, last_frame, nb_points, perimeter])
+        
+    array = np.array(rows)
+    sorted_array = array[np.argsort(-array[:, -1])]
+    return sorted_array

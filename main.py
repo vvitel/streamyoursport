@@ -23,8 +23,8 @@ array_detection = correct_detection(lst_detection, frame_step)
 print("the detections have been filtered \U0001F9FD")
 
 #trouver les moments forts
-array_detection = create_highlights(array_detection, 35)
-print("highlight clips created \U0001F39E")
+array_block_metric = create_highlights(array_detection, 35)
+print(array_block_metric)
 
 #visualiser les détections
 #visualize_detection(video_path, array_detection)
