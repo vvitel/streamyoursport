@@ -13,5 +13,5 @@ def correct_detection(frame_list):
         if (distance1 > 5 and distance2 > 5) or abs(distance1 - distance2) > 3:
             isolated_points.append(i)
 
-    clean_list = [p for i, p in enumerate(frame_list) if i not in isolated_points]
+    clean_list = [(i, p) for i, p in enumerate(frame_list) if i not in isolated_points]
     return clean_list
