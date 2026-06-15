@@ -32,3 +32,5 @@ model = GridTrackNet(IMGS_PER_INSTANCE, HEIGHT, WIDTH)
 model.load_weights("./weights/model_weights.h5")
 y = run_model(model, units)
 coords = decode_to_coordinates(y, frame_width, frame_height, IMGS_PER_INSTANCE, WIDTH, HEIGHT, GRID_ROWS, GRID_COLS)
+
+print(coords)
