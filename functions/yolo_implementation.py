@@ -53,7 +53,7 @@ def apply_yolo(path_to_model, video, step, batch=BATCH):
 
     #charger les modèles en TensorRT FP16 (export auto si le .engine manque)
     model_ball = YOLO(ensure_engine(path_to_model, batch=batch), task="detect")
-    model_human = YOLO(ensure_engine("./weights/best_human.pt", batch=batch), task="detect")
+    model_human = YOLO(ensure_engine("./weights/best_human.engine", batch=batch), task="detect")
 
     #choisir le décodeur : NVDEC pour un fichier, OpenCV pour le live
     batches = _batches_cv2(video, step, batch) if live else _batches_nvdec(video, step, batch)
