@@ -3,7 +3,6 @@ import time
 import queue
 import threading
 import torch
-import numpy as np
 from tqdm import tqdm
 from ultralytics import YOLO
 from torchcodec.decoders import VideoDecoder
@@ -16,10 +15,15 @@ QUEUE_DEPTH = 4  # nb de lots tampons entre les étages (back-pressure + mémoir
 
 def _gpu_frames_to_bgr(idxs, gpu_frames):
     """[N tenseurs [3,H,W] RGB GPU] -> (idxs, [N images H,W,3 BGR numpy]).
-    Une seule copie GPU->CPU par lot."""
-    batch = torch.stack(gpu_frames)                            # [N,3,H,W] RGB GPU
-    arr = batch.permute(0, 2, 3, 1).cpu().numpy()[..., ::-1]   # [N,H,W,3] BGR CPU
-    return idxs, list(np.ascontiguousarray(arr))
+
+    Le flip RGB->BGR, le permute et la mise en contigu sont faits SUR LE GPU :
+    on transfère alors un bloc déjà contigu (un seul DMA propre) au lieu de subir
+    des copies CPU à pas négatif (.cpu() non-contigu + [::-1] + ascontiguousarray),
+    qui faisaient chuter le débit de ~690 fps à ~65 fps."""
+    batch = torch.stack(gpu_frames)                  # [N,3,H,W] RGB GPU
+    batch = batch.flip(1).permute(0, 2, 3, 1)        # [N,H,W,3] BGR GPU (vue)
+    arr = batch.contiguous().cpu().numpy()           # contigu sur GPU -> transfert direct
+    return idxs, list(arr)
 
 
 def _decode_worker(video, step, batch, live, out_q, timing):
