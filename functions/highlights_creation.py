@@ -29,4 +29,4 @@ def create_highlights(data, nb_frame_to_separate):
         
     array = np.array(rows)
     sorted_array = array[np.argsort(-array[:, -1])]
-    return sorted_array
+    return sorted_array[:10]
