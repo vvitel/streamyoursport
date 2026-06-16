@@ -1,6 +1,6 @@
 def neutralize_player(frame, model_human):
     #appliquer le modèle
-    results = model_human(frame, verbose=False)
+    results = model_human(frame, verbose=False, device=0)
 
     #parcourir les détections
     for r in results:

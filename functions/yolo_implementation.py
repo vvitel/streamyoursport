@@ -9,7 +9,9 @@ def apply_yolo(path_to_model, video, step):
 
     #charger modèles
     model_ball = YOLO(path_to_model)
-    model_human = YOLO("./weights/human_openvino_model/")
+    model_ball.to("cuda")
+    model_human = YOLO("./weights/best_human.pt")
+    model_human.to("cuda")
 
     #charger la vidéo
     cap = cv2.VideoCapture(video)
@@ -25,7 +27,7 @@ def apply_yolo(path_to_model, video, step):
             if frame_index % step == 0:
                 #effacer les joueurs
                 frame = neutralize_player(frame, model_human)
-                results = model_ball(frame, verbose=False)
+                results = model_ball(frame, verbose=False, device=0)
 
                 #enregistrer les détections
                 boxes = results[0].boxes.xywh.tolist()
