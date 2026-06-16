@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 from functions.yolo_implementation import apply_yolo
 from functions.detection_correction import correct_detection
 from functions.highlights_creation import create_highlights
@@ -21,10 +22,10 @@ print("the model made its predictions \U0001F52E")
 #corriger les détections
 array_detection = correct_detection(lst_detection, frame_step)
 print("the detections have been filtered \U0001F9FD")
+np.save("./detection.py", array_detection)
 
 #trouver les moments forts
 array_block_metric = create_highlights(array_detection, 35)
-print(array_block_metric)
 
 #visualiser les détections
 #visualize_detection(video_path, array_detection)
