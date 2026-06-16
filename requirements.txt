@@ -9,3 +9,6 @@ tensorrt
 # et d'un torch compile pour CUDA (ex: pip install torch --index-url https://download.pytorch.org/whl/cu124)
 torch
 torchcodec
+# monitoring ressources (optionnel) : GPU/VRAM/NVDEC + CPU
+nvidia-ml-py
+psutil

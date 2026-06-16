@@ -7,10 +7,13 @@ from tqdm import tqdm
 from ultralytics import YOLO
 from torchcodec.decoders import VideoDecoder
 from .player_neutralization import neutralize_player
+from .box_interpolation import interpolate_boxes
+from .resource_monitor import ResourceMonitor
 from .engine_export import ensure_engine
 
 BATCH = 8
-QUEUE_DEPTH = 4  # nb de lots tampons entre les étages (back-pressure + mémoire bornée)
+QUEUE_DEPTH = 4         # nb de lots tampons entre les étages (back-pressure + mémoire bornée)
+HUMAN_DETECT_EVERY = 2  # détecter les joueurs 1 frame sur 2, interpoler l'autre
 
 
 def _gpu_frames_to_bgr(idxs, gpu_frames):
@@ -73,19 +76,97 @@ def _decode_worker(video, step, batch, live, out_q, timing):
         out_q.put(None)  # sentinelle de fin
 
 
-def _human_worker(model_human, in_q, out_q, timing):
-    """Étage 2 : détection des joueurs + neutralisation."""
+class _HumanStage:
+    """Détection des joueurs 1 frame sur `detect_every`, interpolation pour les
+    frames intermédiaires, puis neutralisation.
+
+    L'ordre d'émission n'a pas d'importance : chaque détection de balle porte son
+    `frame_index`, et le tri se fait en aval (correct_detection / create_highlights).
+    On exploite ça pour bufferiser librement. Une frame impaire (interpolée) n'est
+    émise qu'une fois ses deux voisines paires détectées.
+    """
+
+    def __init__(self, model, batch, detect_every, timing):
+        self.model = model
+        self.batch = batch
+        self.every = detect_every
+        self.timing = timing
+        self.position = 0          # compteur de frames traitées (après `step`)
+        self.boxes_at = {}         # position paire -> boîtes joueurs xyxy (cpu)
+        self.held = {}             # position impaire -> (idx, frame) en attente
+        self.det_pending = []      # frames paires à détecter (regroupées en batch)
+        self.emit_buf = []         # (idx, frame) neutralisées, prêtes à émettre
+
+    def _detect(self):
+        """Inférence batchée sur les frames paires en attente."""
+        if not self.det_pending:
+            return
+        items = self.det_pending
+        frames = [f for _, _, f in items]
+        t = time.perf_counter()
+        #classes=[0] : on ne garde que la personne -> NMS allégé (modèle COCO 80 classes)
+        results = self.model(frames, classes=[0], verbose=False)
+        for (pos, idx, frame), r in zip(items, results):
+            boxes = r.boxes.xyxy.cpu()
+            self.boxes_at[pos] = boxes
+            neutralize_player(frame, boxes)
+            self.emit_buf.append((idx, frame))
+        self.timing["human"] += time.perf_counter() - t
+        self.det_pending = []
+
+    def _resolve(self):
+        """Interpole et neutralise les frames impaires dont les 2 voisines sont prêtes."""
+        for pos in [p for p in self.held if (p - 1) in self.boxes_at and (p + 1) in self.boxes_at]:
+            boxes = interpolate_boxes(self.boxes_at[pos - 1], self.boxes_at[pos + 1])
+            idx, frame = self.held.pop(pos)
+            neutralize_player(frame, boxes)
+            self.emit_buf.append((idx, frame))
+        #purge des boîtes devenues inutiles (plus aucune impaire voisine en attente)
+        for p in [p for p in self.boxes_at
+                  if p < self.position - 3 and (p + 1) not in self.held and (p - 1) not in self.held]:
+            del self.boxes_at[p]
+
+    def _flush(self, out_q, final=False):
+        while len(self.emit_buf) >= self.batch or (final and self.emit_buf):
+            chunk, self.emit_buf = self.emit_buf[:self.batch], self.emit_buf[self.batch:]
+            out_q.put(([i for i, _ in chunk], [f for _, f in chunk]))
+
+    def feed(self, idx, frame, out_q):
+        pos = self.position
+        self.position += 1
+        if pos % self.every == 0:
+            self.det_pending.append((pos, idx, frame))
+            if len(self.det_pending) >= self.batch:
+                self._detect()
+        else:
+            self.held[pos] = (idx, frame)  # interpolée plus tard
+        self._resolve()
+        self._flush(out_q)
+
+    def finish(self, out_q):
+        self._detect()
+        self._resolve()
+        #frames impaires restantes (fin de vidéo) : pas de voisine droite -> on prend ce qu'on a
+        for pos in list(self.held):
+            boxes = self.boxes_at.get(pos - 1, self.boxes_at.get(pos + 1, []))
+            idx, frame = self.held.pop(pos)
+            neutralize_player(frame, boxes)
+            self.emit_buf.append((idx, frame))
+        self._flush(out_q, final=True)
+
+
+def _human_worker(model_human, detect_every, batch, in_q, out_q, timing):
+    """Étage 2 : détection joueurs (1 frame sur `detect_every`) + interpolation."""
+    stage = _HumanStage(model_human, batch, detect_every, timing)
     while True:
         item = in_q.get()
         if item is None:
-            out_q.put(None)
             break
         idxs, frames = item
-        t = time.perf_counter()
-        results = model_human(frames, verbose=False)
-        frames = [neutralize_player(f, r) for f, r in zip(frames, results)]
-        timing["human"] += time.perf_counter() - t
-        out_q.put((idxs, frames))
+        for idx, frame in zip(idxs, frames):
+            stage.feed(idx, frame, out_q)
+    stage.finish(out_q)
+    out_q.put(None)
 
 
 def _ball_worker(model_ball, in_q, data, pbar, timing):
@@ -124,12 +205,16 @@ def apply_yolo(path_to_model, video, step, batch=BATCH):
     data = []
     timing = {"decode": 0.0, "human": 0.0, "ball": 0.0}
 
+    monitor = ResourceMonitor()
+    monitor.start()
     with tqdm() as pbar:
         decode_t = threading.Thread(
             target=_decode_worker, args=(video, step, batch, live, raw_q, timing), daemon=True
         )
         human_t = threading.Thread(
-            target=_human_worker, args=(model_human, raw_q, neut_q, timing), daemon=True
+            target=_human_worker,
+            args=(model_human, HUMAN_DETECT_EVERY, batch, raw_q, neut_q, timing),
+            daemon=True,
         )
         decode_t.start()
         human_t.start()
@@ -137,8 +222,9 @@ def apply_yolo(path_to_model, video, step, batch=BATCH):
         _ball_worker(model_ball, neut_q, data, pbar, timing)
         human_t.join()
         decode_t.join()
+    monitor.stop_and_report()
 
-    #temps cumulé par étage : l'étage le plus long borne le débit du pipeline
+    #temps cumulé par étage (wall-clock contendu : indicatif, pas du temps GPU pur)
     print(
         "temps cumulé par étage ⏱️  "
         f"decode: {timing['decode']:.1f}s | humain: {timing['human']:.1f}s | balle: {timing['ball']:.1f}s"
