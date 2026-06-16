@@ -1,6 +1,11 @@
 numpy
 opencv-python
-openvino==2026.1.0
 scipy
 tqdm
 ultralytics
+# inference GPU NVIDIA (L4) : TensorRT FP16
+tensorrt
+# decodage video GPU (NVDEC). torchcodec a besoin de FFmpeg installe sur le systeme
+# et d'un torch compile pour CUDA (ex: pip install torch --index-url https://download.pytorch.org/whl/cu124)
+torch
+torchcodec
