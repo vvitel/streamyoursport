@@ -13,7 +13,7 @@ class ResourceMonitor(threading.Thread):
     def __init__(self, interval=0.5):
         super().__init__(daemon=True)
         self.interval = interval
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self.samples = []
         self._nvml = None
         self._psutil = None
@@ -34,7 +34,7 @@ class ResourceMonitor(threading.Thread):
             self._psutil = None
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             s = {}
             if self._nvml is not None:
                 try:
@@ -54,10 +54,10 @@ class ResourceMonitor(threading.Thread):
                     pass
             if s:
                 self.samples.append(s)
-            self._stop.wait(self.interval)
+            self._stop_event.wait(self.interval)
 
     def stop_and_report(self):
-        self._stop.set()
+        self._stop_event.set()
         self.join(timeout=2)
 
         if not self.samples:
