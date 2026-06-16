@@ -2,6 +2,7 @@ import cv2
 import time
 import queue
 import threading
+import torch
 import numpy as np
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -11,6 +12,14 @@ from .engine_export import ensure_engine
 
 BATCH = 8
 QUEUE_DEPTH = 4  # nb de lots tampons entre les étages (back-pressure + mémoire bornée)
+
+
+def _gpu_frames_to_bgr(idxs, gpu_frames):
+    """[N tenseurs [3,H,W] RGB GPU] -> (idxs, [N images H,W,3 BGR numpy]).
+    Une seule copie GPU->CPU par lot."""
+    batch = torch.stack(gpu_frames)                            # [N,3,H,W] RGB GPU
+    arr = batch.permute(0, 2, 3, 1).cpu().numpy()[..., ::-1]   # [N,H,W,3] BGR CPU
+    return idxs, list(np.ascontiguousarray(arr))
 
 
 def _decode_worker(video, step, batch, live, out_q, timing):
@@ -35,16 +44,27 @@ def _decode_worker(video, step, batch, live, out_q, timing):
                 out_q.put((idxs, frames))
             cap.release()
         else:
+            #décodage SÉQUENTIEL (forward-only) = chemin rapide de NVDEC/torchcodec.
+            #on parcourt toutes les frames dans l'ordre et on ne garde qu'une frame sur `step`.
+            #(éviter get_frames_at sur des indices épars : ça reseek depuis les keyframes)
             decoder = VideoDecoder(video, device="cuda")
-            indices = list(range(0, decoder.metadata.num_frames, step))
-            for i in range(0, len(indices), batch):
-                t = time.perf_counter()
-                chunk = indices[i:i + batch]
-                frames = decoder.get_frames_at(indices=chunk).data       # [N,3,H,W] RGB GPU
-                frames = frames.permute(0, 2, 3, 1).cpu().numpy()[..., ::-1]  # -> [N,H,W,3] BGR CPU
-                frames = np.ascontiguousarray(frames)
+            buf_idx, buf_gpu = [], []
+            t = time.perf_counter()
+            for i, frame in enumerate(decoder):     # frame = [3,H,W] uint8 RGB sur GPU
+                if i % step != 0:
+                    continue
+                buf_idx.append(i)
+                buf_gpu.append(frame)
+                if len(buf_gpu) == batch:
+                    item = _gpu_frames_to_bgr(buf_idx, buf_gpu)
+                    timing["decode"] += time.perf_counter() - t
+                    out_q.put(item)               # peut bloquer si l'aval est plein (non compté)
+                    buf_idx, buf_gpu = [], []
+                    t = time.perf_counter()
+            if buf_gpu:
+                item = _gpu_frames_to_bgr(buf_idx, buf_gpu)
                 timing["decode"] += time.perf_counter() - t
-                out_q.put((chunk, list(frames)))
+                out_q.put(item)
     finally:
         out_q.put(None)  # sentinelle de fin
 
